@@ -1,4 +1,3 @@
-%%writefile app.py
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -79,5 +78,6 @@ top_returns = filtered_df[filtered_df['is_returned'] == True].groupby('Product_N
     'Refund_Amount': 'sum',
     'Transaction_ID': 'count'
 }).rename(columns={'Transaction_ID': 'Atgriešanu skaits'}).sort_values(by='Refund_Amount', ascending=False)
+
 
 st.dataframe(top_returns.style.format({'Refund_Amount': '{:.2f} €'}), use_container_width=True)
