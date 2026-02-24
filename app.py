@@ -1,43 +1,25 @@
+# 1. DATU APSTRĀDE (Lai nebūtu jāizmanto gatavs CSV)
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 1. DATU APSTRĀDE (Lai nebūtu jāizmanto gatavs CSV)
+# 1. VIENKĀRŠĀ DATU IELĀDE
 @st.cache_data
-def get_clean_data():
-    # 1. Ielādējam datus
-    orders = pd.read_csv('orders_raw.csv')
-    returns = pd.read_excel('returns_messy.xlsx')
-    
-    # DROŠĪBAS SOLIS: Notīrām kolonnu nosaukumus no atstarpēm
-    orders.columns = orders.columns.str.strip()
-    returns.columns = returns.columns.str.strip()
-    
-    # 2. Piespiežam ID būt par tekstu
-    orders['Transaction_ID'] = orders['Transaction_ID'].astype(str).str.strip()
-    returns['Original_Tx_ID'] = returns['Original_Tx_ID'].astype(str).str.strip()
-    
-    # 3. Datuma formāta sakārtošana (atrisina iepriekšējo kļūdu)
-    orders['Date'] = pd.to_datetime(orders['Date'], dayfirst=True, errors='coerce')
-    
-    # 4. Apvienojam datus
-    df = pd.merge(orders, returns, left_on='Transaction_ID', right_on='Original_Tx_ID', how='left')
-    
-    # 5. Pārbaudām, kura kolonna satur ieņēmumus (Total_Revenue vai Revenue)
-    rev_col = 'Total_Revenue' if 'Total_Revenue' in df.columns else 'Revenue'
-    
-    # 6. Tīrīšana un aprēķini
+def load_final_data():
+    # Mēs ielādējam jau gatavu, Colabā pārbaudītu tabulu
+    df = pd.read_csv('final_data_for_app.csv')
+    df['Date'] = pd.to_datetime(df['Date'])
+    # Nodrošinām, ka kategorijas ir glītas
     df['Product_Category'] = df['Product_Category'].str.strip().str.title()
-    df['Refund_Amount'] = df['Refund_Amount'].fillna(0)
-    
-    # Izmantojam atrasto ieņēmumu kolonnu
-    df['Net_Revenue'] = df[rev_col] - df['Refund_Amount']
-    df['is_returned'] = df['Return_ID'].notna()
-    
-    # Izmetam rindas bez datuma
-    df = df.dropna(subset=['Date'])
-    
     return df
+
+try:
+    df = load_final_data()
+except Exception as e:
+    st.error(f"Nevarēju atrast failu 'final_data_for_app.csv' GitHub mapē! Kļūda: {e}")
+    st.stop()
+
+# --- Tālāk seko pārējais tavs kods (Filtri, KPI, Vizuāļi) ---
 
 # 2. IELĀDĒJAM UN PĀRBAUDĀM
 try:
@@ -110,6 +92,7 @@ top_returns = filtered_df[filtered_df['is_returned'] == True].groupby('Product_N
 
 
 st.dataframe(top_returns.style.format({'Refund_Amount': '{:.2f} €'}), use_container_width=True)
+
 
 
 
