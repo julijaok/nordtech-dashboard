@@ -5,13 +5,20 @@ import plotly.express as px
 # 1. DATU APSTRĀDE (Lai nebūtu jāizmanto gatavs CSV)
 @st.cache_data
 def get_clean_data():
-    # Ielādējam datus tieši no GitHub mapes
+    # 1. Ielādējam datus
     orders = pd.read_csv('orders_raw.csv')
     returns = pd.read_excel('returns_messy.xlsx')
     
-    # Apvienojam un sakārtojam (tāpat kā darījām Colab)
+    # 2. LABOJUMS: Piespiežam Transaction_ID būt par tekstu abos failos
+    # Tas novērš int64 vs object kļūdu
+    orders['Transaction_ID'] = orders['Transaction_ID'].astype(str).str.strip()
+    returns['Original_Tx_ID'] = returns['Original_Tx_ID'].astype(str).str.strip()
+    
+    # 3. Apvienojam datus
     df = pd.merge(orders, returns, left_on='Transaction_ID', right_on='Original_Tx_ID', how='left')
-    df['Product_Category'] = df['Product_Category'].str.strip().str.title() # Apvieno saskaldītos
+    
+    # 4. Tīrīšana un aprēķini (lai diagrammas nebūtu saskaldītas)
+    df['Product_Category'] = df['Product_Category'].str.strip().str.title() #
     df['Date'] = pd.to_datetime(df['Date'])
     df['Refund_Amount'] = df['Refund_Amount'].fillna(0)
     df['Net_Revenue'] = df['Total_Revenue'] - df['Refund_Amount']
@@ -90,4 +97,5 @@ top_returns = filtered_df[filtered_df['is_returned'] == True].groupby('Product_N
 
 
 st.dataframe(top_returns.style.format({'Refund_Amount': '{:.2f} €'}), use_container_width=True)
+
 
