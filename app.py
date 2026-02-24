@@ -1,34 +1,22 @@
-# 1. DATU APSTRĀDE (Lai nebūtu jāizmanto gatavs CSV)
 import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 1. VIENKĀRŠĀ DATU IELĀDE
+# 1. DATU IELĀDE (Izmantojam tavu jauno final_data_for_app.csv)
 @st.cache_data
 def load_final_data():
-    # Mēs ielādējam jau gatavu, Colabā pārbaudītu tabulu
+    # Šis fails tagad satur visus nepieciešamos aprēķinus no Colab
     df = pd.read_csv('final_data_for_app.csv')
     df['Date'] = pd.to_datetime(df['Date'])
-    # Nodrošinām, ka kategorijas ir glītas
     df['Product_Category'] = df['Product_Category'].str.strip().str.title()
     return df
 
+# Mēģinām ielādēt datus
 try:
     df = load_final_data()
 except Exception as e:
-    st.error(f"Nevarēju atrast failu 'final_data_for_app.csv' GitHub mapē! Kļūda: {e}")
+    st.error(f"Kļūda ielādējot final_data_for_app.csv: {e}")
     st.stop()
-
-# --- Tālāk seko pārējais tavs kods (Filtri, KPI, Vizuāļi) ---
-
-# 2. IELĀDĒJAM UN PĀRBAUDĀM
-try:
-    df = get_clean_data()
-except Exception as e:
-    st.error(f"Datu ielādes kļūda: {e}. Pārliecinies, ka GitHub mapē ir 'orders_raw.csv' un 'returns_messy.xlsx'!")
-    st.stop()
-
-# Tālāk seko tava vizualizāciju un KPI sadaļa...
 
 # --- 2. SIDEBAR FILTRI ---
 st.sidebar.header("📊 Filtri")
@@ -38,16 +26,26 @@ categories = st.sidebar.multiselect(
     default=df['Product_Category'].unique()
 )
 
+# Filtra datumu robežas
+min_date = df['Date'].min().date()
+max_date = df['Date'].max().date()
+
 date_range = st.sidebar.date_input(
     "Laika periods:",
-    [df['Date'].min(), df['Date'].max()]
+    [min_date, max_date],
+    min_value=min_date,
+    max_value=max_date
 )
 
-# Filtrējam datus
-mask = (df['Product_Category'].isin(categories)) & \
-       (df['Date'] >= pd.Timestamp(date_range[0])) & \
-       (df['Date'] <= pd.Timestamp(date_range[1]))
-filtered_df = df[mask]
+# Filtrējam datus (drošības pārbaude datumu diapazonam)
+if len(date_range) == 2:
+    start_date, end_date = date_range
+    mask = (df['Product_Category'].isin(categories)) & \
+           (df['Date'].dt.date >= start_date) & \
+           (df['Date'].dt.date <= end_date)
+    filtered_df = df[mask]
+else:
+    filtered_df = df[df['Product_Category'].isin(categories)]
 
 # --- 3. KPI RINDAS ---
 st.title("🚀 Operatīvās situācijas pārskats")
@@ -55,12 +53,11 @@ col1, col2, col3 = st.columns(3)
 
 total_rev = filtered_df['Net_Revenue'].sum()
 refund_total = filtered_df['Refund_Amount'].sum()
-# Aprēķinām atgriezumu % pret ieņēmumiem
 refund_rate = (refund_total / total_rev * 100) if total_rev > 0 else 0
 
 col1.metric("Kopējie Neto Ieņēmumi", f"{total_rev:,.2f} €")
 col2.metric("Atgrieztā Summa", f"{refund_total:,.2f} €", delta=f"{refund_rate:.1f}% no ieņ.")
-col3.metric("Sūdzību skaits (pēc 15.12.)", "110") # Fiksēts cipars no mūsu analīzes
+col3.metric("Sūdzību skaits (pēc 15.12.)", "110") 
 
 st.markdown("---")
 
@@ -76,7 +73,6 @@ with row1_col1:
 
 with row1_col2:
     st.subheader("Zaudējumu struktūra (Sunburst)")
-    # Izmantojam agregētu tabulu, lai nav saskaldīts
     sun_df = filtered_df[filtered_df['is_returned'] == True].groupby(['Product_Category', 'Product_Name'])['Refund_Amount'].sum().reset_index()
     sun_df = sun_df[sun_df['Refund_Amount'] > 0]
     fig_sun = px.sunburst(sun_df, path=['Product_Category', 'Product_Name'], values='Refund_Amount',
@@ -89,7 +85,6 @@ top_returns = filtered_df[filtered_df['is_returned'] == True].groupby('Product_N
     'Refund_Amount': 'sum',
     'Transaction_ID': 'count'
 }).rename(columns={'Transaction_ID': 'Atgriešanu skaits'}).sort_values(by='Refund_Amount', ascending=False)
-
 
 st.dataframe(top_returns.style.format({'Refund_Amount': '{:.2f} €'}), use_container_width=True)
 
