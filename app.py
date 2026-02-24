@@ -9,20 +9,25 @@ def get_clean_data():
     orders = pd.read_csv('orders_raw.csv')
     returns = pd.read_excel('returns_messy.xlsx')
     
-    # 2. LABOJUMS: Piespiežam Transaction_ID būt par tekstu abos failos
-    # Tas novērš int64 vs object kļūdu
+    # 2. LABOJUMS: Piespiežam ID būt par tekstu
     orders['Transaction_ID'] = orders['Transaction_ID'].astype(str).str.strip()
     returns['Original_Tx_ID'] = returns['Original_Tx_ID'].astype(str).str.strip()
     
-    # 3. Apvienojam datus
+    # 3. LABOJUMS: Datuma formāta sakārtošana
+    # Izmantojam dayfirst=True un format='mixed', lai saprastu 28/11/2023
+    orders['Date'] = pd.to_datetime(orders['Date'], dayfirst=True, errors='coerce')
+    
+    # 4. Apvienojam datus
     df = pd.merge(orders, returns, left_on='Transaction_ID', right_on='Original_Tx_ID', how='left')
     
-    # 4. Tīrīšana un aprēķini (lai diagrammas nebūtu saskaldītas)
-    df['Product_Category'] = df['Product_Category'].str.strip().str.title() #
-    df['Date'] = pd.to_datetime(df['Date'])
+    # 5. Tīrīšana un aprēķini
+    df['Product_Category'] = df['Product_Category'].str.strip().str.title()
     df['Refund_Amount'] = df['Refund_Amount'].fillna(0)
     df['Net_Revenue'] = df['Total_Revenue'] - df['Refund_Amount']
     df['is_returned'] = df['Return_ID'].notna()
+    
+    # Izmetam rindas, kur datums nav atpazīts (ja tādas ir)
+    df = df.dropna(subset=['Date'])
     
     return df
 
@@ -97,5 +102,6 @@ top_returns = filtered_df[filtered_df['is_returned'] == True].groupby('Product_N
 
 
 st.dataframe(top_returns.style.format({'Refund_Amount': '{:.2f} €'}), use_container_width=True)
+
 
 
