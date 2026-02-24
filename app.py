@@ -2,22 +2,31 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-# 1. DATU IELĀDE (Aizstāj ar savu faila nosaukumu)
-# Šeit lietotne nolasa datus no diska
-@st.cache_data # Šis paātrina lietotni
-def load_data():
-    # Ja tavs apvienotais fails ir saglabāts kā 'final_data.csv'
-    df = pd.read_csv('final_data.csv') 
+# 1. DATU APSTRĀDE (Lai nebūtu jāizmanto gatavs CSV)
+@st.cache_data
+def get_clean_data():
+    # Ielādējam datus tieši no GitHub mapes
+    orders = pd.read_csv('orders_raw.csv')
+    returns = pd.read_excel('returns_messy.xlsx')
+    
+    # Apvienojam un sakārtojam (tāpat kā darījām Colab)
+    df = pd.merge(orders, returns, left_on='Transaction_ID', right_on='Original_Tx_ID', how='left')
+    df['Product_Category'] = df['Product_Category'].str.strip().str.title() # Apvieno saskaldītos
     df['Date'] = pd.to_datetime(df['Date'])
-    df['Product_Category'] = df['Product_Category'].str.strip().str.title()
+    df['Refund_Amount'] = df['Refund_Amount'].fillna(0)
+    df['Net_Revenue'] = df['Total_Revenue'] - df['Refund_Amount']
+    df['is_returned'] = df['Return_ID'].notna()
+    
     return df
 
-# Mēģinām ielādēt datus
+# 2. IELĀDĒJAM UN PĀRBAUDĀM
 try:
-    df = load_data()
-except FileNotFoundError:
-    st.error("Kļūda: Fails 'final_data.csv' netika atrasts! Lūdzu, saglabā savu merged_data tabulu kā CSV failu.")
+    df = get_clean_data()
+except Exception as e:
+    st.error(f"Datu ielādes kļūda: {e}. Pārliecinies, ka GitHub mapē ir 'orders_raw.csv' un 'returns_messy.xlsx'!")
     st.stop()
+
+# Tālāk seko tava vizualizāciju un KPI sadaļa...
 
 # --- 2. SIDEBAR FILTRI ---
 st.sidebar.header("📊 Filtri")
@@ -81,3 +90,4 @@ top_returns = filtered_df[filtered_df['is_returned'] == True].groupby('Product_N
 
 
 st.dataframe(top_returns.style.format({'Refund_Amount': '{:.2f} €'}), use_container_width=True)
+
